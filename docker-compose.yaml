@@ -1,0 +1,54 @@
+# docker-compose.yaml — orchestration de PRODUCTION
+#
+# Deux services construits/tirés à partir de la MÊME image (Dockerfile),
+# différenciés uniquement par SERVICE_ROLE. Ils communiquent via le
+# réseau Docker interne "metrics-net" et le nom DNS du service ("api"),
+# et non via 127.0.0.1 (qui, à l'intérieur d'un conteneur, ne désignerait
+# que ce conteneur lui-même).
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME:-changeme}/metrics-agent:latest
+    container_name: metrics_api
+    env_file:
+      - .env
+    environment:
+      SERVICE_ROLE: api
+    ports:
+      - "8000:8000"
+    networks:
+      - metrics-net
+    healthcheck:
+      test: ["CMD", "./healthcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME:-changeme}/metrics-agent:latest
+    container_name: metrics_agent
+    env_file:
+      - .env
+    environment:
+      SERVICE_ROLE: agent
+      # Surcharge volontaire de METRICS_ENDPOINT du .env : entre deux
+      # conteneurs du même réseau Docker, on cible le service "api" par
+      # son nom DNS interne, jamais par 127.0.0.1 ni par localhost.
+      METRICS_ENDPOINT: http://api:8000/metrics
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - metrics-net
+    restart: unless-stopped
+
+networks:
+  metrics-net:
+    driver: bridge

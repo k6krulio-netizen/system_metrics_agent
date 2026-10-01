@@ -1,0 +1,39 @@
+# docker-compose.override.yml — bascule automatique en mode DÉVELOPPEMENT
+#
+# Docker Compose charge ce fichier automatiquement en plus de
+# docker-compose.yaml dès qu'on lance `docker compose up` sans option
+# particulière (fusion des deux fichiers). Il n'est PAS utilisé quand on
+# déploie explicitement à partir des images publiées sur Docker Hub avec
+# `docker compose -f docker-compose.yaml up` (voir README, section
+# "Lancer en production à partir de Docker Hub").
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./app:/app/app
+      - ./tests:/app/tests
+    command:
+      [
+        "uvicorn",
+        "app.api:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+      ]
+    # Rechargement à chaud oblige : l'API redémarre en continu pendant le
+    # développement, un healthcheck strict générerait du bruit inutile.
+    healthcheck:
+      disable: true
+
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./app:/app/app
+      - ./tests:/app/tests
+    command: ["python", "-m", "app.agent"]

@@ -1,0 +1,45 @@
+# =============================================================================
+# Dockerfile.dev — environnement de DÉVELOPPEMENT
+# =============================================================================
+# Objectif : confort de développement, pas optimisation de taille.
+# - Installe TOUTES les dépendances, y compris pytest (tests/dev).
+# - Le code applicatif est monté en volume par docker-compose.override.yml,
+#   ce qui permet le rechargement à chaud (--reload d'uvicorn) sans
+#   reconstruire l'image à chaque modification.
+# - Tourne avec un utilisateur non-root, comme en production, pour éviter
+#   les écarts de comportement (permissions de fichiers, etc.) entre les
+#   deux environnements.
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Dépendances système minimales utiles en dev (procps pour ps/pgrep,
+# utilisé par le même healthcheck.sh qu'en production).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# Un utilisateur dédié, non-root : simple à mettre en place et cohérent
+# avec l'image de production.
+RUN useradd --create-home --shell /usr/sbin/nologin appuser
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copie du code : sert de base/fallback si l'image est lancée sans les
+# volumes de développement (docker-compose.override.yml les ajoute).
+COPY . .
+RUN chmod +x entrypoint.sh healthcheck.sh \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
+ENV PYTHONUNBUFFERED=1 \
+    SERVICE_ROLE=api
+
+EXPOSE 8000
+
+# Commande par défaut : API avec rechargement à chaud. Le service "agent"
+# en développement redéfinit cette commande dans
+# docker-compose.override.yml (python -m app.agent).
+CMD ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

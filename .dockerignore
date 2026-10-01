@@ -1,0 +1,21 @@
+# Contrôle de version et CI
+.git
+.github
+
+# Environnements virtuels et caches Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Tests : exécutés par le job CI directement sur le runner (voir
+# ci-cd.yml), pas besoin de les embarquer dans l'image de production.
+tests/
+
+# Configuration locale (jamais de secrets dans l'image)
+.env
+
+# Documentation et fichiers Compose (inutiles à l'intérieur de l'image)
+*.md
+docker-compose*.yml
